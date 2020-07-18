@@ -30,8 +30,24 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
    * NOTE: Consult particle_filter.h for more information about this method 
    *   (and others in this file).
    */
-  num_particles = 0;  // TODO: Set the number of particles
-
+  num_particles = 1000;  // TODO: Set the number of particles
+  
+  
+  for (int i = 0; i< num_particles; i++)
+  {
+    Particle particle;
+    
+    particle.id = i;
+    particle.x = x + random.gauss(0.0, std[0]);
+    particle.y = y + random.gauss(0.0, std[1]);
+    particle.theta = theta + random.gauss(0.0, std[2]);
+    particle.theta %= 2 * pi;
+    particle.weight = 1;  
+    
+    particles.push_back(particle)
+  }
+  
+  is_initialized = true;
 }
 
 void ParticleFilter::prediction(double delta_t, double std_pos[], 
@@ -43,6 +59,16 @@ void ParticleFilter::prediction(double delta_t, double std_pos[],
    *  http://en.cppreference.com/w/cpp/numeric/random/normal_distribution
    *  http://www.cplusplus.com/reference/random/default_random_engine/
    */
+  
+  for (int i = 0; i< num_particles; i++)
+  {
+    double theta     = particles[i].theta;
+    double new_theta = theta + yaw_rate*delta_t; 
+    particles[i].x = particles[i].x + ((v/yaw_rate) * (sin(new_theta) - sin(theta)) + random.gauss(0.0, std_pos[0]);
+    particles[i].y = particles[i].y + ((v/yaw_rate) * (cos(theta) - cos(new_theta))  + random.gauss(0.0, std_pos[1]);
+    particles[i].theta = new_theta + random.gauss(0.0, std_pos[2]);
+    particles[i].theta %= 2 * pi;  
+  }
 
 }
 
@@ -56,6 +82,20 @@ void ParticleFilter::dataAssociation(vector<LandmarkObs> predicted,
    *   probably find it useful to implement this method and use it as a helper 
    *   during the updateWeights phase.
    */
+  
+  // Transformation
+  
+  
+  //Association
+   for (int i = 0; i < predicted.size(); i++)
+  {
+     long min_dist = 0;
+     for (int j = 0; j < observations.size(); j++)
+     {
+        dist = sqrt((self.x - landmarks[i][0]) ** 2 + (self.y - landmarks[i][1]) ** 2)
+     	predicted[i]
+     }
+  }
 
 }
 
