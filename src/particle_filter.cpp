@@ -30,17 +30,22 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
    * NOTE: Consult particle_filter.h for more information about this method 
    *   (and others in this file).
    */
+  
   num_particles = 1000;  // TODO: Set the number of particles
   
+  std::default_random_engine gen;
+  normal_distribution<double> dist_x(x, std_pos[0]);
+  normal_distribution<double> dist_y(y, std_pos[1]));
+  normal_distribution<double> dist_theta(theta, std_pos[2]));
   
   for (int i = 0; i< num_particles; i++)
   {
     Particle particle;
     
     particle.id = i;
-    particle.x = x + random.gauss(0.0, std[0]);
-    particle.y = y + random.gauss(0.0, std[1]);
-    particle.theta = theta + random.gauss(0.0, std[2]);
+    particle.x = dist_x(gen);
+    particle.y = dist_y(gen);
+    particle.theta = dist_theta(gen);
     particle.theta %= 2 * pi;
     particle.weight = 1;  
     
@@ -59,14 +64,19 @@ void ParticleFilter::prediction(double delta_t, double std_pos[],
    *  http://en.cppreference.com/w/cpp/numeric/random/normal_distribution
    *  http://www.cplusplus.com/reference/random/default_random_engine/
    */
+  std::default_random_engine gen;
+  normal_distribution<double> dist_x(0.0, std_pos[0]);
+  normal_distribution<double> dist_y(0.0, std_pos[1]));
+  normal_distribution<double> dist_theta(0.0, std_pos[2]));
   
   for (int i = 0; i< num_particles; i++)
-  {
+  {   
+    
     double theta     = particles[i].theta;
     double new_theta = theta + yaw_rate*delta_t; 
-    particles[i].x = particles[i].x + ((v/yaw_rate) * (sin(new_theta) - sin(theta)) + random.gauss(0.0, std_pos[0]);
-    particles[i].y = particles[i].y + ((v/yaw_rate) * (cos(theta) - cos(new_theta))  + random.gauss(0.0, std_pos[1]);
-    particles[i].theta = new_theta + random.gauss(0.0, std_pos[2]);
+    particles[i].x = particles[i].x + ((v/yaw_rate) * (sin(new_theta) - sin(theta)) + dist_x(gen);
+    particles[i].y = particles[i].y + ((v/yaw_rate) * (cos(theta) - cos(new_theta)) + dist_y(gen);
+    particles[i].theta = new_theta + dist_theta(gen);
     particles[i].theta %= 2 * pi;  
   }
 
@@ -82,19 +92,23 @@ void ParticleFilter::dataAssociation(vector<LandmarkObs> predicted,
    *   probably find it useful to implement this method and use it as a helper 
    *   during the updateWeights phase.
    */
-  
-  // Transformation
-  
-  
-  //Association
-   for (int i = 0; i < predicted.size(); i++)
+ 
+  bool first_time = true;
+  long dist, min_dist;
+  for (int i = 0; i < observations.size; i++)
   {
-     long min_dist = 0;
-     for (int j = 0; j < observations.size(); j++)
-     {
-        dist = sqrt((self.x - landmarks[i][0]) ** 2 + (self.y - landmarks[i][1]) ** 2)
-     	predicted[i]
-     }
+    dist = dist(predicted.x, predicted.y, observations[i].x, observations[i].y);
+    if (first_time == true)
+    {
+       first_time = false;
+       min_dist = dist;
+       predicted.id = observations[i].id;
+    }
+    else if (min_dist > dist )
+    {
+       min_dist = dist;
+       predicted.id = observations[i].id;
+    }
   }
 
 }
@@ -115,7 +129,24 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
    *   and the following is a good resource for the actual equation to implement
    *   (look at equation 3.33) http://planning.cs.uiuc.edu/node99.html
    */
-
+  
+  for (int i = 0; i < num_particles; i++)
+  { 
+    
+    // Transformation
+    vector<LandmarkObs> transformed_observations;
+  	for (int j = 0; j < observations.size; j++)
+  	{
+    	LandmarkObs obs;
+    	obs.x = particles[i].x + (cos(particles[i].theta)*observations[j].x) - (sin(particles[i].theta)*observations[j].y);
+    	obs.y = particles[i].y + (sin(particles[i].theta)*observations[j].y) + (cos(particles[i].theta)*observations[j].x);
+      	obs.id = observations[j].id;
+      	transformed_observations.push_back(obs);
+    }
+    
+    // Association
+    dataAssociation(vector<LandmarkObs> predicted, transformed_observations);
+  }
 }
 
 void ParticleFilter::resample() {
