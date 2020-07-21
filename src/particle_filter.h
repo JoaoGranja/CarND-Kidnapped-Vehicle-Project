@@ -102,6 +102,7 @@ class ParticleFilter {
     return is_initialized;
   }
 
+
   /**
    * Used for obtaining debugging information related to particles.
    */
