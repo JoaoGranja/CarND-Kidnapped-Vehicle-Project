@@ -37,7 +37,6 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
   std::normal_distribution<double> dist_y(y, std[1]);
   std::normal_distribution<double> dist_theta(theta, std[2]);
   
-  std::cout << "GRANJA Init " << "x = " << x << " y =  " << y << " theta = " << theta << std::endl; 
   
   for (int i = 0; i< num_particles; i++)
   {
@@ -47,7 +46,6 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
     particle.x = dist_x(gen);
     particle.y = dist_y(gen);
     particle.theta = dist_theta(gen);
-    particle.theta = remainder(particle.theta, (2 * M_PI));
     particle.weight = 1;  
     
     particles.push_back(particle);
@@ -71,15 +69,20 @@ void ParticleFilter::prediction(double delta_t, double std_pos[],
   
   for (int i = 0; i< num_particles; i++)
   {   
-    
-    double theta     = particles[i].theta;
-    double new_theta = theta + yaw_rate*delta_t; 
-    particles[i].x = particles[i].x + ((velocity/yaw_rate) * (sin(new_theta) - sin(theta)) + dist_x(gen));
-    particles[i].y = particles[i].y + ((velocity/yaw_rate) * (cos(theta) - cos(new_theta)) + dist_y(gen));
-    particles[i].theta = new_theta + dist_theta(gen);
-    particles[i].theta = remainder(particles[i].theta, (2 * M_PI)); 
-    
-    std::cout << "GRANJA predict " << "x = " << particles[i].x << " y =  " << particles[i].y << " theta = " << particles[i].theta << std::endl; 
+    // in case yaw rate is too small simplify the predictions equations
+    if (fabs(yaw_rate) < 0.001) 
+    {
+      particles[i].x += velocity * delta_t * cos(particles[i].theta) + dist_x(gen);
+      particles[i].y += velocity * delta_t * sin(particles[i].theta) + dist_y(gen);
+    }
+    else
+    {
+      double theta     = particles[i].theta;
+      double new_theta = theta + yaw_rate*delta_t;
+      particles[i].x += ((velocity/yaw_rate) * (sin(new_theta) - sin(theta))) + dist_x(gen);
+      particles[i].y += ((velocity/yaw_rate) * (cos(theta) - cos(new_theta))) + dist_y(gen);
+      particles[i].theta = new_theta + dist_theta(gen);
+    }
   }
 
 }
@@ -136,6 +139,17 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
    *   (look at equation 3.33) http://planning.cs.uiuc.edu/node99.html
    */
   
+  vector<LandmarkObs> landmarks_obs;
+  for (unsigned int j = 0; j < map_landmarks.landmark_list.size(); j++)
+  {
+    LandmarkObs obs;
+    obs.x = map_landmarks.landmark_list[j].x_f;
+    obs.y = map_landmarks.landmark_list[j].y_f;
+    obs.id = map_landmarks.landmark_list[j].id_i - 1;
+    landmarks_obs.push_back(obs);
+  }
+  
+  double total_weight = 0;
   for (int i = 0; i < num_particles; i++)
   { 
     
@@ -145,54 +159,40 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
   	{
     	LandmarkObs obs;
     	obs.x = particles[i].x + (cos(particles[i].theta)*observations[j].x) - (sin(particles[i].theta)*observations[j].y);
-    	obs.y = particles[i].y + (sin(particles[i].theta)*observations[j].y) + (cos(particles[i].theta)*observations[j].x);
+    	obs.y = particles[i].y + (sin(particles[i].theta)*observations[j].x) + (cos(particles[i].theta)*observations[j].y);
       	trans_observations.push_back(obs);
-      
-      std::cout << "GRANJA trans_observations " << "x = " << obs.x << " y =  " << obs.y << std::endl;
     }
        
-    //std::cout << "GRANJA TESTE before association" << std::endl;
-    
     // Association
-    vector<LandmarkObs> landmarks_obs;
-    for (unsigned int j = 0; j < map_landmarks.landmark_list.size(); j++)
-  	{
-      LandmarkObs obs;
-      obs.x = map_landmarks.landmark_list[j].x_f;
-      obs.y = map_landmarks.landmark_list[j].y_f;
-      obs.id = map_landmarks.landmark_list[j].id_i - 1;
-      landmarks_obs.push_back(obs);
-      
-      std::cout << "GRANJA landmarks_obs " << "x = " << obs.x << " y =  " << obs.y << std::endl;
-    }
-
     dataAssociation(landmarks_obs, trans_observations);
     
+    // mult-variate Gaussian distribution
     double prob = 1.0;
     for (unsigned int k = 0; k < trans_observations.size(); k++)
   	{
-      // mult-variate Gaussian distribution
-      //std::cout << "GRANJA TESTE before dist" << particles[i].x << particles[i].y << transformed_observations[k].x << transformed_observations[k].y << std::endl;
-      double distance = dist(particles[i].x, particles[i].y, trans_observations[k].x, trans_observations[k].y); 
-      //std::cout << "GRANJA TESTE after dist" << std::endl;
+      double mu_x  = landmarks_obs[trans_observations[k].id].x;
+  	  double mu_y  = landmarks_obs[trans_observations[k].id].y;
+      double distance = dist(particles[i].x, particles[i].y, mu_x, mu_y); 
       
       if (distance <= sensor_range)
       {
         double x_obs = trans_observations[k].x;
         double y_obs = trans_observations[k].y;
-        double mu_x  = landmarks_obs[trans_observations[k].id].x;
-  		double mu_y  = landmarks_obs[trans_observations[k].id].y;
-        
-        //std::cout << "GRANJA TESTE before multiv_prob" << std::endl;
-    	prob *= multiv_prob(std_landmark[0], std_landmark[1],  x_obs, y_obs, mu_x, mu_y);
-        std::cout << "GRANJA multiv_prob " << prob << " " << x_obs << " " << mu_x << " " << y_obs << " " << mu_y<< std::endl;  
-        //std::cout << "GRANJA TESTE after multiv_prob" << std::endl;
+    	prob *= multiv_prob(std_landmark[0], std_landmark[1],  x_obs, y_obs, mu_x, mu_y); 
       }
-      //std::cout << "GRANJA TESTE aqui" << std::endl;
     }
-    //std::cout << "GRANJA TESTE weight " << prob << std::endl;
+    
     particles[i].weight = prob;
+    total_weight += prob;
   }
+  
+  
+  //Weights normaliation
+  for (int i = 0; i < num_particles; i++)
+  { 
+    particles[i].weight = particles[i].weight/ total_weight;
+  }
+  
 }
 
 void ParticleFilter::resample() {
@@ -210,20 +210,21 @@ void ParticleFilter::resample() {
   auto max_it = std::max_element(particles.begin(), particles.end(), 
                                  [] (const Particle& p1, const Particle& p2) {return p1.weight < p2.weight;});
   double max_w = max_it->weight;
+  
   int index = rand() % num_particles;
   double B = 0;
   
   for (int i = 0; i < num_particles; i++)
   {
-      B = B + ((2*max_w) * rand());
-      while(particles[index].weight < B)
+      B = B + ((2*max_w) * ((double) rand() / (RAND_MAX)));
+      while(B > particles[index].weight)
       {
           B = B - particles[index].weight;
-          index = remainder((index + 1),  num_particles);
+          index = fmod((index + 1), num_particles);
       }
       resample_particles.push_back(particles[index]);
   }
-
+  particles = resample_particles;
 }
 
 void ParticleFilter::SetAssociations(Particle& particle, 
